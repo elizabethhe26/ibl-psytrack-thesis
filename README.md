@@ -8,7 +8,7 @@ Reproduction code for:
 
 ```bash
 git clone https://github.com/elizabethhe26/ibl-psytrack-thesis.git
-cd he-thesis-reproduction
+cd ibl-psytrack-thesis
 pip install -r requirements.txt
 python run_all.py
 ```
@@ -27,7 +27,7 @@ Phase 2: Model Fitting (~2-4 hours)
     Computes overnight weight jumps
 
 Phase 3: Statistical Analysis (~5 min)
-    Generates all thesis figures (5-23, A6) and tables (5-12, A3)
+    Generates all thesis figures and tables
 ```
 
 Run individual phases with `python run_all.py --phase 1|2|3`.
@@ -42,22 +42,22 @@ The dataset is the December 2019 IBL snapshot (3,259,282 trials, 92 mice, 9 labs
 
 | Thesis Figure | Description | Output File |
 |---|---|---|
-| Fig 5 | Dataset Overview | `fig_dataset_overview.pdf` |
-| Fig 6 | σ Trajectories (connected dots) | `fig_sigma_trajectories_connected.pdf` |
-| Fig 7 | Weight Dynamics (9 mice) | `fig_weight_dynamics.pdf` |
-| Fig 8 | Contrast Curriculum | `fig_contrast_curriculum.pdf` |
-| Fig 9 | Individual Composite (3 mice) | `fig_individual_composite_v3.pdf` |
-| Fig 14 | Phenotype Distribution | `fig_phenotype_distribution.pdf` |
-| Fig 15 | Phenotype Stability | `fig_phenotype_stability.pdf` |
-| Fig 16 | Phenotype & Learning Speed | `fig_phenotype_learning_speed.pdf` |
-| Fig 17 | Overnight Analysis | `fig_overnight_corrected_v3.pdf` |
-| Fig 18 | Overnight Histograms | `fig_overnight_distributions.pdf` |
-| Fig 19 | Day Gap Effect | `fig_day_gap_effect.pdf` |
-| Fig 20 | Individual Trajectories | `fig_individual_trajectories.pdf` |
-| Fig 21 | Lab Effects | `fig_lab_effects.pdf` |
-| Fig 22 | Outlier Trajectories | `fig_outlier_trajectories.pdf` |
-| Fig 23 | High-Contrast Control | `fig_high_contrast_control.pdf` |
-| Fig A6 | Phenotype Validation | `fig_phenotype_validation.pdf` |
+| Fig 2 | Dataset Overview | `fig_dataset_overview.pdf` |
+| Fig 3 | σ Trajectories (connected dots) | `fig_sigma_trajectories_connected.pdf` |
+| Fig 4 | Weight Dynamics (9 mice) | `fig_weight_dynamics.pdf` |
+| Fig 5 | Contrast Curriculum | `fig_contrast_curriculum.pdf` |
+| Fig 6 | Individual Composite (3 mice) | `fig_individual_composite_v3.pdf` |
+| Fig 7 | Phenotype Distribution | `fig_phenotype_distribution.pdf` |
+| Fig 8 | Phenotype Stability | `fig_phenotype_stability.pdf` |
+| Fig 9 | Phenotype & Learning Speed | `fig_phenotype_learning_speed.pdf` |
+| Fig 10 | Overnight Analysis | `fig_overnight_corrected_v3.pdf` |
+| Fig 11 | Overnight Histograms | `fig_overnight_distributions.pdf` |
+| Fig 12 | Day Gap Effect | `fig_day_gap_effect.pdf` |
+| Fig 13 | Individual Trajectories | `fig_individual_trajectories.pdf` |
+| Fig 14 | Lab Effects | `fig_lab_effects.pdf` |
+| Fig 15 | Outlier Trajectories | `fig_outlier_trajectories.pdf` |
+| Fig 16 | High-Contrast Control | `fig_high_contrast_control.pdf` |
+| Fig 25 | Phenotype Validation | `fig_phenotype_validation.pdf` |
 
 ## Software
 
