@@ -1,0 +1,9 @@
+numpy>=1.21
+pandas>=1.3
+matplotlib>=3.5
+scipy>=1.11
+statsmodels>=0.13
+psytrack>=2.0.2
+seaborn>=0.11
+requests>=2.25
+tqdm>=4.62
