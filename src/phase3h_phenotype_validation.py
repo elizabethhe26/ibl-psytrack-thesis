@@ -118,7 +118,7 @@ def run_phenotype_validation():
     pc = np.maximum(complete_df['chunk3_sigma_trial_prev_choice'].values, SIGMA_FLOOR)
     wsls = np.maximum(complete_df['chunk3_sigma_trial_wsls'].values, SIGMA_FLOOR)
     complete_df['log_ratio'] = np.log10(pc) - np.log10(wsls)
-    complete_df['phenotype'] = (pc / wsls).apply(classify_phenotype)
+    complete_df['phenotype'] = pd.Series(pc / wsls).apply(classify_phenotype).values
 
     # Compute empirical WS/LS for each mouse from C3 trial data
     results = []
@@ -178,10 +178,21 @@ def run_phenotype_validation():
     # ── Figure A6: 2-panel ──
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
 
-    # Panel A: Scatter
+    # Panel A: Scatter with regression line
     point_colors = [COLORS.get(p, 'gray') for p in results_df['phenotype']]
     ax1.scatter(results_df['log_ratio'], results_df['ws_ls_gap'],
                 c=point_colors, s=50, alpha=0.7, edgecolors='white', linewidth=0.5)
+
+    # Add regression line (linear fit for visual reference)
+    x_vals = results_df['log_ratio'].values
+    y_vals = results_df['ws_ls_gap'].values
+    valid = ~(np.isnan(x_vals) | np.isnan(y_vals))
+    if valid.sum() > 2:
+        z = np.polyfit(x_vals[valid], y_vals[valid], 1)
+        x_line = np.linspace(x_vals[valid].min(), x_vals[valid].max(), 100)
+        ax1.plot(x_line, np.polyval(z, x_line), '--', color='black', linewidth=1,
+                 alpha=0.6, label='Linear fit')
+
     ax1.axvline(LOG_THRESHOLD, color='gray', linestyle=':', alpha=0.5)
     ax1.axvline(-LOG_THRESHOLD, color='gray', linestyle=':', alpha=0.5)
     ax1.set_xlabel(r'$\log_{10}(\sigma_{pc}/\sigma_{wsls})$')
@@ -189,8 +200,9 @@ def run_phenotype_validation():
     ax1.set_title('A. σ-ratio vs Empirical Gap', fontweight='bold', loc='left')
     ax1.text(0.02, 0.02, f'Spearman ρ = {rho:.3f}, p = {p_spearman:.3f}',
              transform=ax1.transAxes, fontsize=9)
+    ax1.legend(fontsize=8)
 
-    # Panel B: Grouped box plots
+    # Panel B: Grouped box plots — transparent boxes with visible data points
     group_data = []
     group_labels = []
     group_colors_list = []
@@ -202,39 +214,98 @@ def run_phenotype_validation():
             group_colors_list.append(COLORS.get(pheno, 'gray'))
 
     if group_data:
-        bp = ax2.boxplot(group_data, tick_labels=group_labels,
+        bp = ax2.boxplot(group_data, labels=group_labels,
                          patch_artist=True, widths=0.5)
         for patch, color in zip(bp['boxes'], group_colors_list):
             patch.set_facecolor(color)
-            patch.set_alpha(0.7)
+            patch.set_alpha(0.3)
+
+        # Overlay individual data points
+        for i, (vals, color) in enumerate(zip(group_data, group_colors_list)):
+            x_jitter = np.random.normal(i + 1, 0.06, len(vals))
+            ax2.scatter(x_jitter, vals, color=color, s=20, alpha=0.7, zorder=3,
+                        edgecolor='white', linewidth=0.3)
 
     ax2.set_ylabel('WS − LS gap')
     ax2.set_title('B. Gap by Phenotype', fontweight='bold', loc='left')
+
+    # Add KW stats if available
+    try:
+        ax2.text(0.98, 0.98, f'Kruskal-Wallis H = {H:.2f}, p = {p_kw:.3f}',
+                 transform=ax2.transAxes, ha='right', va='top', fontsize=8,
+                 bbox=dict(boxstyle='round,pad=0.3', facecolor='white', alpha=0.8))
+    except NameError:
+        pass
 
     fig.suptitle('Phenotype Validation: Empirical Win-Stay/Lose-Stay Rates',
                  fontsize=13, fontweight='bold')
     plt.tight_layout()
     save_figure(fig, os.path.join(FIGURE_DIR, 'fig_phenotype_validation'))
 
-    # ── Table A3 ──
+    # ── Table 14: Phenotype Validation (CSV + LaTeX) ──
+    # Row order matches thesis: Reward-sensitive, Mixed, Perseverator
     table_rows = []
-    for pheno in ['perseverator', 'mixed', 'reward_sensitive']:
+    for pheno in ['reward_sensitive', 'mixed', 'perseverator']:
         subset = results_df[results_df['phenotype'] == pheno]
         if len(subset) > 0:
             table_rows.append({
                 'Phenotype': pheno,
                 'N': len(subset),
-                'WS_mean': f'{subset["ws_rate"].mean():.3f}',
-                'WS_sd': f'{subset["ws_rate"].std():.3f}',
-                'LS_mean': f'{subset["ls_rate"].mean():.3f}',
-                'LS_sd': f'{subset["ls_rate"].std():.3f}',
-                'Gap_mean': f'{subset["ws_ls_gap"].mean():.3f}',
-                'Gap_sd': f'{subset["ws_ls_gap"].std():.3f}',
+                'WS_mean': subset["ws_rate"].mean(),
+                'WS_sd': subset["ws_rate"].std(),
+                'LS_mean': subset["ls_rate"].mean(),
+                'LS_sd': subset["ls_rate"].std(),
+                'Gap_mean': subset["ws_ls_gap"].mean(),
+                'Gap_sd': subset["ws_ls_gap"].std(),
             })
 
     table_df = pd.DataFrame(table_rows)
     table_df.to_csv(os.path.join(TABLE_DIR, 'table_phenotype_validation.csv'), index=False)
-    print(f"\n  Saved: table_phenotype_validation.csv")
+
+    # LaTeX — matching thesis format exactly
+    from config import LATEX_DIR
+    os.makedirs(LATEX_DIR, exist_ok=True)
+
+    latex = '\\begin{table}[htbp]\n\\centering\n'
+    latex += ('\\caption{\\textbf{Phenotype Validation: Empirical Win-Stay and Lose-Stay Rates '
+              'by Model-Based Phenotype (Chunk 3).} '
+              'Win-stay (WS) = $P(\\text{stay}\\mid\\text{previous trial rewarded})$; '
+              'lose-stay (LS) = $P(\\text{stay}\\mid\\text{previous trial unrewarded})$. '
+              'The WS$-$LS gap summarizes outcome modulation in choice repetition.}\n')
+    latex += '\\label{tab:phenotype_ws_ls}\n'
+    latex += '\\begin{tabular}{lcccc}\n\\toprule\n'
+    latex += ('Phenotype & $n$ & Win-stay (mean $\\pm$ SD) '
+              '& Lose-stay (mean $\\pm$ SD) & WS$-$LS gap (mean $\\pm$ SD) \\\\\n')
+    latex += '\\midrule\n'
+
+    pheno_labels = {
+        'reward_sensitive': 'Reward-sensitive',
+        'mixed': 'Mixed',
+        'perseverator': 'Perseverator',
+    }
+    for r in table_rows:
+        label = pheno_labels.get(r['Phenotype'], r['Phenotype'])
+        gap_str = f'$-${abs(r["Gap_mean"]):.3f}' if r['Gap_mean'] < 0 else f'{r["Gap_mean"]:.3f}'
+        latex += (f'{label} & {r["N"]} & '
+                  f'{r["WS_mean"]:.3f} $\\pm$ {r["WS_sd"]:.3f} & '
+                  f'{r["LS_mean"]:.3f} $\\pm$ {r["LS_sd"]:.3f} & '
+                  f'{gap_str} $\\pm$ {r["Gap_sd"]:.3f} \\\\\n')
+
+    # Summary statistics rows
+    latex += '\\midrule\n'
+    latex += (f'\\multicolumn{{5}}{{l}}{{\\textit{{Continuous validation:}} '
+              f'Spearman $\\rho = {rho:.3f}$, $p = {p_spearman:.3f}$}} \\\\\n')
+
+    if len(groups) >= 2:
+        latex += (f'\\multicolumn{{5}}{{l}}{{\\textit{{Grouped test:}} '
+                  f'Kruskal-Wallis $H = {H:.2f}$, $p = {p_kw:.3f}$}} \\\\\n')
+
+    latex += '\\bottomrule\n\\end{tabular}\n\\end{table}\n'
+
+    with open(os.path.join(LATEX_DIR, 'table_phenotype_validation.tex'), 'w') as f:
+        f.write(latex)
+
+    print(f"\n  Saved: table_phenotype_validation.csv + .tex (Table 14)")
     print("  PHASE 3-H COMPLETE")
 
 

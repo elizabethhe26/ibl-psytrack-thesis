@@ -235,12 +235,12 @@ def run_phase2():
     with open(CHUNK_EXPLORATION_FILE, 'rb') as f:
         chunk_data = pickle.load(f)
 
-    # Determine which mice to process
+    # Determine which mice to process — Tier 1 only for primary analysis
+    # (Thesis Section 2.4: "Tier 2 mice are used only for descriptive summaries")
     tier1 = chunk_data['selection']['tier1']
-    tier2 = chunk_data['selection']['tier2']
-    process_order = tier1 + tier2  # Tier 1 first
-    print(f"  Tier 1: {len(tier1)} mice")
-    print(f"  Tier 2: {len(tier2)} mice")
+    process_order = tier1
+    print(f"  Tier 1: {len(tier1)} mice (will be fitted)")
+    print(f"  Tier 2: {len(chunk_data['selection']['tier2'])} mice (skipped — descriptive only)")
     print(f"  Total to process: {len(process_order)}")
 
     # Check for existing checkpoint
@@ -352,9 +352,20 @@ def run_phase2():
 
     summary_df = pd.DataFrame(summary_rows)
 
-    # Add lab column (prefix of subject ID)
-    summary_df['lab'] = summary_df['subject'].apply(
-        lambda s: s.rsplit('_', 1)[0] if '_' in s else s)
+    # Add lab column using thesis convention (9 labs from subject prefix)
+    def _extract_lab_thesis(s):
+        if s.startswith('CSH_ZAD'): return 'CSH'
+        elif s.startswith('CSHL'): return 'CSHL'
+        elif s.startswith('DY_'): return 'DY'
+        elif s.startswith('IBL'): return 'IBL'
+        elif s.startswith('KS'): return 'KS'
+        elif s.startswith('NYU'): return 'NYU'
+        elif s.startswith('SWC'): return 'SWC'
+        elif s.startswith('ZM_'): return 'ZM'
+        elif s.startswith('ibl_witten'): return 'ibl_witten'
+        else: return 'Unknown'
+
+    summary_df['lab'] = summary_df['subject'].apply(_extract_lab_thesis)
 
     # ── Save outputs ──
     os.makedirs(INTERMEDIATE_DIR, exist_ok=True)

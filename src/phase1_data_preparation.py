@@ -236,22 +236,19 @@ def detect_chunk_boundaries(mouse_df, subject_id):
     c1_start = 1
     c1_end = (session_25_intro - 1) if session_25_intro and session_25_intro > 1 else None
 
-    # C2: 25% introduction to session before 0%/6.25% introduction
+    # C2: 25% introduction to session before 0% introduction
     c2_start = session_25_intro if session_25_intro else None
 
-    # C3 starts at whichever comes first: 0% or 6.25% introduction
-    c3_trigger = None
-    if session_0_intro and session_0625_intro:
-        c3_trigger = min(session_0_intro, session_0625_intro)
-    elif session_0_intro:
-        c3_trigger = session_0_intro
-    elif session_0625_intro:
-        c3_trigger = session_0625_intro
+    # C3 starts at 0% contrast introduction (matching Colab NB1 exactly).
+    # Note: the thesis text (Section 2.3) says "6.25% or 0%" but the
+    # Colab code (NB1 line 278) uses only session_0_intro as the trigger.
+    # For most mice these coincide; for a few (e.g., ibl_witten_13,
+    # ZM_1743) 6.25% appears one session before 0%, placing those
+    # 6.25% trials in C2. We match the Colab to reproduce thesis σ values.
+    c2_end = (session_0_intro - 1) if session_0_intro and c2_start and session_0_intro > c2_start else None
 
-    c2_end = (c3_trigger - 1) if c3_trigger and c2_start and c3_trigger > c2_start else c2_start
-
-    # C3: from 0%/6.25% introduction to basic task end
-    c3_start = c3_trigger if c3_trigger else None
+    # C3: from 0% introduction to basic task end
+    c3_start = session_0_intro if session_0_intro else None
     c3_end = basic_task_end if c3_start else None
 
     # Handle edge cases
@@ -373,6 +370,201 @@ def classify_mouse_tier(result):
         return 'excluded'
 
 
+# ─── Lab extraction ───────────────────────────────────────────────────────────
+
+def _extract_lab(subject_id):
+    """Extract lab abbreviation from subject ID.
+
+    Maps subject name prefixes to the thesis lab abbreviations:
+        CSH_ZAD_* → CSH, CSHL_* / CSHL0* → CSHL, DY_* → DY,
+        IBL-* / IBL_* → IBL, KS* → KS, NYU-* → NYU,
+        SWC_* → SWC, ZM_* → ZM, ibl_witten_* → ibl_witten
+    """
+    if subject_id.startswith('CSH_ZAD'):
+        return 'CSH'
+    elif subject_id.startswith('CSHL'):
+        return 'CSHL'
+    elif subject_id.startswith('DY_'):
+        return 'DY'
+    elif subject_id.startswith('IBL'):
+        return 'IBL'
+    elif subject_id.startswith('KS'):
+        return 'KS'
+    elif subject_id.startswith('NYU'):
+        return 'NYU'
+    elif subject_id.startswith('SWC'):
+        return 'SWC'
+    elif subject_id.startswith('ZM_'):
+        return 'ZM'
+    elif subject_id.startswith('ibl_witten'):
+        return 'ibl_witten'
+    else:
+        # Fallback: take alphabetic prefix
+        prefix = ''.join(c for c in subject_id if c.isalpha())
+        return prefix if prefix else 'Unknown'
+
+
+# ─── LaTeX Table Generation ──────────────────────────────────────────────────
+
+def _make_table1_lab_summary(summary_df):
+    """Table 1: Dataset Summary by Laboratory.
+
+    Shows mice count, Tier 1, Tier 2, and Excluded per lab.
+    """
+    from config import LATEX_DIR, TABLE_DIR
+    os.makedirs(LATEX_DIR, exist_ok=True)
+    os.makedirs(TABLE_DIR, exist_ok=True)
+
+    # Count by lab and tier
+    lab_order = ['CSH', 'CSHL', 'DY', 'IBL', 'KS', 'NYU', 'SWC', 'ZM', 'ibl_witten']
+    rows = []
+    for lab in lab_order:
+        lab_mice = summary_df[summary_df['lab'] == lab]
+        if len(lab_mice) == 0:
+            continue
+        n_total = len(lab_mice)
+        n_tier1 = (lab_mice['tier'] == 'tier1').sum()
+        n_tier2 = (lab_mice['tier'] == 'tier2').sum()
+        n_excluded = (lab_mice['tier'] == 'excluded').sum()
+        rows.append({
+            'lab': lab, 'total': n_total,
+            'tier1': n_tier1, 'tier2': n_tier2, 'excluded': n_excluded
+        })
+
+    table_df = pd.DataFrame(rows)
+    table_df.to_csv(os.path.join(TABLE_DIR, 'table_lab_summary.csv'), index=False)
+
+    # LaTeX
+    latex = '\\begin{table}[htbp]\n\\centering\n'
+    latex += '\\caption{\\textbf{Dataset Summary by Laboratory.}}\n'
+    latex += '\\label{tab:lab_distribution}\n'
+    latex += '\\begin{tabular}{lcccc}\n\\toprule\n'
+    latex += 'Laboratory & Mice & Tier 1 & Tier 2 & Excluded \\\\\n'
+    latex += '\\midrule\n'
+
+    total_mice = total_t1 = total_t2 = total_ex = 0
+    for r in rows:
+        lab_label = r['lab'].replace('_', '\\_')
+        latex += f'{lab_label} & {r["total"]} & {r["tier1"]} & {r["tier2"]} & {r["excluded"]} \\\\\n'
+        total_mice += r['total']
+        total_t1 += r['tier1']
+        total_t2 += r['tier2']
+        total_ex += r['excluded']
+
+    latex += '\\midrule\n'
+    latex += f'\\textbf{{Total}} & \\textbf{{{total_mice}}} & \\textbf{{{total_t1}}} & \\textbf{{{total_t2}}} & \\textbf{{{total_ex}}} \\\\\n'
+    latex += '\\bottomrule\n\\end{tabular}\n'
+    latex += '\\begin{tablenotes}\n\\footnotesize\n'
+    latex += '\\item Tier 1: All chunks $\\geq$1,000 trials (ideal for stable $\\sigma$ estimation). '
+    latex += 'Tier 2: Some chunks 500--1,000 trials. '
+    latex += 'Excluded: Any chunk $<$500 trials or invalid chunk boundaries.\n'
+    latex += '\\end{tablenotes}\n\\end{table}\n'
+
+    with open(os.path.join(LATEX_DIR, 'table_lab_summary.tex'), 'w') as f:
+        f.write(latex)
+    print(f"\n  Saved: table_lab_summary.csv + .tex (Table 1)")
+
+
+def _make_table5_chunk_characteristics(summary_df):
+    """Table 5: Chunk Characteristics for Tier 1 mice.
+
+    Layout matches thesis: chunks as rows, metrics as columns.
+    Includes trials, days, overnight transitions, and contrast annotations.
+    """
+    from config import LATEX_DIR, TABLE_DIR, CHUNK_EXPLORATION_FILE
+    import pickle
+
+    tier1 = summary_df[summary_df['tier'] == 'tier1'].copy()
+    n = len(tier1)
+
+    # Compute overnight transitions from unique calendar dates
+    # Overnight transitions = n_unique_dates - 1 per mouse per chunk
+    overnight_counts = {'chunk1': 0, 'chunk2': 0, 'chunk3': 0}
+    for cn in ['chunk1', 'chunk2', 'chunk3']:
+        days_col = f'{cn}_days'
+        if days_col in tier1.columns:
+            day_vals = tier1[days_col].dropna()
+            overnight_counts[cn] = int(day_vals[day_vals > 1].apply(lambda x: x - 1).sum())
+
+    rows = []
+    for chunk in ['chunk1', 'chunk2', 'chunk3']:
+        trials = tier1[f'{chunk}_trials'].dropna()
+        days = tier1[f'{chunk}_days'].dropna()  # unique calendar dates
+        rows.append({
+            'chunk': chunk,
+            'trials_median': trials.median(),
+            'trials_q1': trials.quantile(0.25),
+            'trials_q3': trials.quantile(0.75),
+            'trials_min': trials.min(),
+            'trials_max': trials.max(),
+            'days_median': days.median(),
+            'days_q1': days.quantile(0.25),
+            'days_q3': days.quantile(0.75),
+            'days_min': days.min(),
+            'days_max': days.max(),
+            'overnight': overnight_counts[chunk],
+        })
+
+    # Compute totals across chunks per mouse
+    total_trials = (tier1['chunk1_trials'].fillna(0) +
+                    tier1['chunk2_trials'].fillna(0) +
+                    tier1['chunk3_trials'].fillna(0))
+    total_days = (tier1['chunk1_days'].fillna(0) +
+                  tier1['chunk2_days'].fillna(0) +
+                  tier1['chunk3_days'].fillna(0))
+    total_overnight = sum(overnight_counts.values())
+
+    # Save CSV
+    table_df = pd.DataFrame(rows)
+    table_df.to_csv(os.path.join(TABLE_DIR, 'table_chunk_characteristics.csv'), index=False)
+
+    # Helper formatters
+    c1, c2, c3 = rows[0], rows[1], rows[2]
+
+    def fmt_iqr(r, prefix):
+        return f'{r[f"{prefix}_median"]:,.0f} ({r[f"{prefix}_q1"]:,.0f}--{r[f"{prefix}_q3"]:,.0f})'
+
+    def fmt_range(r, prefix):
+        return f'{r[f"{prefix}_min"]:,.0f}--{r[f"{prefix}_max"]:,.0f}'
+
+    def fmt_day_iqr(r):
+        return f'{r["days_median"]:.0f} ({r["days_q1"]:.0f}--{r["days_q3"]:.0f})'
+
+    def fmt_day_range(r):
+        return f'{r["days_min"]:.0f}--{r["days_max"]:.0f}'
+
+    # LaTeX — metrics as rows, chunks as columns (matching thesis line 656)
+    latex = '\\begin{table}[htbp]\n\\centering\n'
+    latex += f'\\caption{{\\textbf{{Chunk Characteristics (Tier 1 mice included in $\\sigma$ analyses, n = {n}).}}}}\n'
+    latex += '\\label{tab:chunk_summary}\n'
+    latex += '\\begin{tabular}{lccc}\n\\toprule\n'
+    latex += ' & \\textbf{Chunk 1} & \\textbf{Chunk 2} & \\textbf{Chunk 3} \\\\\n'
+    latex += ' & (Early) & (Expansion) & (Full Set) \\\\\n'
+    latex += '\\midrule\n'
+    latex += f'Trials, med.\\ (IQR) & {fmt_iqr(c1,"trials")} & {fmt_iqr(c2,"trials")} & {fmt_iqr(c3,"trials")} \\\\\n'
+    latex += f'Trials, range & {fmt_range(c1,"trials")} & {fmt_range(c2,"trials")} & {fmt_range(c3,"trials")} \\\\\n'
+    latex += f'Days, med.\\ (IQR) & {fmt_day_iqr(c1)} & {fmt_day_iqr(c2)} & {fmt_day_iqr(c3)} \\\\\n'
+    latex += f'Days, range & {fmt_day_range(c1)} & {fmt_day_range(c2)} & {fmt_day_range(c3)} \\\\\n'
+    latex += f'Overnight trans. & {c1["overnight"]:,d} & {c2["overnight"]:,d} & {c3["overnight"]:,d} \\\\\n'
+    latex += '\\midrule\n'
+    latex += 'New contrast levels introduced & 100\\%, 50\\% & +25\\%, 12.5\\% & +6.25\\%, 0\\%$^\\ddagger$ \\\\\n'
+    latex += '\\bottomrule\n\\end{tabular}\n'
+    latex += '\\begin{tablenotes}\n\\small\n'
+    latex += (f'\\item Total across all chunks: median {total_trials.median():,.0f} trials '
+              f'(IQR: {total_trials.quantile(0.25):,.0f}--{total_trials.quantile(0.75):,.0f}) '
+              f'over {total_days.median():.0f} days '
+              f'(IQR: {total_days.quantile(0.25):.0f}--{total_days.quantile(0.75):.0f}).\n')
+    latex += ('\\item Overnight transitions: number of between-session boundaries '
+              'available for overnight weight change analysis.\n')
+    latex += ('\\item $^\\ddagger$50\\% contrast is removed later in Chunk~3 (IBL stage~6), '
+              'so the late-C3 contrast set is [100, 25, 12.5, 6.25, 0].\n')
+    latex += '\\end{tablenotes}\n\\end{table}\n'
+
+    with open(os.path.join(LATEX_DIR, 'table_chunk_characteristics.tex'), 'w') as f:
+        f.write(latex)
+    print(f"  Saved: table_chunk_characteristics.csv + .tex (Table 5)")
+
+
 # ─── Main pipeline ───────────────────────────────────────────────────────────
 
 def run_phase1():
@@ -448,8 +640,11 @@ def run_phase1():
     # Build summary DataFrame
     summary_rows = []
     for r in all_results:
+        lab = _extract_lab(r['subject'])
+        subject_id = r['subject']
         row = {
-            'subject': r['subject'],
+            'subject': subject_id,
+            'lab': lab,
             'total_trials': r['total_trials'],
             'total_sessions': r['total_sessions'],
             'basic_task_end': r['basic_task_end'],
@@ -462,7 +657,22 @@ def run_phase1():
             row[f'{cn}_trials'] = c['trials']
             row[f'{cn}_sessions'] = c['n_sessions']
             row[f'{cn}_status'] = c['status']
+
+            # Count unique calendar dates from trial data
+            trial_df = mouse_data.get(subject_id, {}).get('trial_data', {}).get(cn)
+            if trial_df is not None and len(trial_df) > 0 and 'date' in trial_df.columns:
+                n_unique_dates = trial_df['date'].nunique()
+                row[f'{cn}_days'] = n_unique_dates
+            else:
+                row[f'{cn}_days'] = 0
+
         summary_rows.append(row)
+
+    summary_df = pd.DataFrame(summary_rows)
+
+    # Generate LaTeX tables (Table 1 and Table 5)
+    _make_table1_lab_summary(summary_df)
+    _make_table5_chunk_characteristics(summary_df)
 
     summary_df = pd.DataFrame(summary_rows)
 

@@ -7,14 +7,16 @@ import os
 
 # ─── Paths ───────────────────────────────────────────────────────────────────
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DATA_DIR = os.path.join(BASE_DIR, 'data', 'raw')
+DATA_DIR = os.path.join(BASE_DIR, 'data')
+RAW_DOWNLOAD_DIR = os.path.join(DATA_DIR, 'raw')  # Figshare zip lands here
 INTERMEDIATE_DIR = os.path.join(BASE_DIR, 'intermediate')
 OUTPUT_DIR = os.path.join(BASE_DIR, 'output')
 FIGURE_DIR = os.path.join(OUTPUT_DIR, 'figures')
 TABLE_DIR = os.path.join(OUTPUT_DIR, 'tables')
 LATEX_DIR = os.path.join(OUTPUT_DIR, 'latex')
 
-RAW_DATA_FILE = os.path.join(DATA_DIR, 'ibl_processed.csv')
+PROCESSED_DATA_FILE = os.path.join(DATA_DIR, 'ibl_processed.csv')  # output of data_download.py
+RAW_DATA_FILE = PROCESSED_DATA_FILE  # backward-compat alias (used by Phase 1, run_all)
 FIGSHARE_URL = 'https://ndownloader.figshare.com/files/21623715'
 
 CHUNK_EXPLORATION_FILE = os.path.join(INTERMEDIATE_DIR, 'ibl_chunk_exploration.pkl')

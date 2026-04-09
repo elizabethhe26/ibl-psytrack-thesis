@@ -26,14 +26,15 @@ import time
 # Ensure project root is on path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from config import (DATA_DIR, INTERMEDIATE_DIR, FIGURE_DIR, TABLE_DIR,
-                    LATEX_DIR, RAW_DATA_FILE, CHUNK_EXPLORATION_FILE,
-                    SUMMARY_CSV_FILE)
+from config import (DATA_DIR, RAW_DOWNLOAD_DIR, INTERMEDIATE_DIR, FIGURE_DIR,
+                    TABLE_DIR, LATEX_DIR, RAW_DATA_FILE, CHUNK_EXPLORATION_FILE,
+                    SUMMARY_CSV_FILE, OVERNIGHT_JUMPS_FILE)
 
 
 def create_directories():
     """Create all output directories if they don't exist."""
-    for d in [DATA_DIR, INTERMEDIATE_DIR, FIGURE_DIR, TABLE_DIR, LATEX_DIR]:
+    for d in [DATA_DIR, RAW_DOWNLOAD_DIR, INTERMEDIATE_DIR,
+              FIGURE_DIR, TABLE_DIR, LATEX_DIR]:
         os.makedirs(d, exist_ok=True)
 
 
@@ -57,41 +58,50 @@ def run_pipeline(phase=None, skip_download=False):
 
     create_directories()
 
-    # ── Data download ──
-    if not skip_download and (phase is None or phase == 0):
-        if not os.path.exists(RAW_DATA_FILE):
+    # ── Data download and preparation ──
+    if phase is None or phase == 1:
+        if not skip_download and not os.path.exists(RAW_DATA_FILE):
             from src.data_download import download_and_prepare
             download_and_prepare()
+        elif os.path.exists(RAW_DATA_FILE):
+            from src.data_download import download_and_prepare
+            download_and_prepare()  # Prints "Pre-processed data already exists"
         else:
-            print(f"Data already downloaded: {RAW_DATA_FILE}")
+            print("ERROR: Data file not found at:")
+            print(f"  {RAW_DATA_FILE}")
+            print("Run without --skip-download to download from Figshare.")
+            sys.exit(1)
 
     # ── Phase 1: Data preparation ──
     if phase is None or phase == 1:
-        if not os.path.exists(RAW_DATA_FILE):
-            print("ERROR: Raw data file not found. Run without --skip-download first.")
-            sys.exit(1)
         from src.phase1_data_preparation import run_phase1
         run_phase1()
 
     # ── Phase 2: Model fitting ──
     if phase is None or phase == 2:
         if not os.path.exists(CHUNK_EXPLORATION_FILE):
-            print("ERROR: Phase 1 output not found. Run Phase 1 first.")
+            print("ERROR: Phase 1 output not found.")
+            print("  Run Phase 1 first: python run_all.py --phase 1")
             sys.exit(1)
         from src.phase2_model_fitting import run_phase2
         run_phase2()
 
     # ── Phase 3: Statistical analysis and figures ──
     if phase is None or phase == 3:
-        if not os.path.exists(SUMMARY_CSV_FILE):
-            print("ERROR: Phase 2 output not found. Run Phase 2 first.")
+        if not os.path.exists(SUMMARY_CSV_FILE) or not os.path.exists(OVERNIGHT_JUMPS_FILE):
+            print("ERROR: Phase 2 output not found.")
+            print(f"  Expected: {SUMMARY_CSV_FILE}")
+            print(f"           {OVERNIGHT_JUMPS_FILE}")
+            print("  Run Phase 2 first: python run_all.py --phase 2")
             sys.exit(1)
 
         # Main analysis (Figures 5-22, Tables 5-12)
         from src.phase3_statistical_analysis import run_phase3
         run_phase3()
 
-        # High-contrast control (Figure 23)
+        # High-contrast control (Figure 16)
+        # Internal skip logic in phase3g handles refitting from cache;
+        # the figure is always regenerated.
         from src.phase3g_high_contrast_control import run_high_contrast_control
         run_high_contrast_control()
 
