@@ -16,7 +16,6 @@ TABLE_DIR = os.path.join(OUTPUT_DIR, 'tables')
 LATEX_DIR = os.path.join(OUTPUT_DIR, 'latex')
 
 PROCESSED_DATA_FILE = os.path.join(DATA_DIR, 'ibl_processed.csv')  # output of data_download.py
-RAW_DATA_FILE = PROCESSED_DATA_FILE  # backward-compat alias (used by Phase 1, run_all)
 FIGSHARE_URL = 'https://ndownloader.figshare.com/files/21623715'
 
 CHUNK_EXPLORATION_FILE = os.path.join(INTERMEDIATE_DIR, 'ibl_chunk_exploration.pkl')

@@ -23,7 +23,7 @@ from datetime import datetime
 from collections import defaultdict
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
-from config import (RAW_DATA_FILE, CHUNK_EXPLORATION_FILE, INTERMEDIATE_DIR,
+from config import (PROCESSED_DATA_FILE, CHUNK_EXPLORATION_FILE, INTERMEDIATE_DIR,
                     MIN_TRIALS_OK, MIN_TRIALS_WARNING, MIN_TRIALS_CRITICAL,
                     MIN_BLOCK_LENGTH, CONTRAST_NAMES)
 
@@ -578,8 +578,8 @@ def run_phase1():
     print("=" * 70)
 
     # Load data
-    print(f"\nLoading data from: {RAW_DATA_FILE}")
-    df = pd.read_csv(RAW_DATA_FILE)
+    print(f"\nLoading data from: {PROCESSED_DATA_FILE}")
+    df = pd.read_csv(PROCESSED_DATA_FILE)
     if 'date' in df.columns:
         df['date'] = pd.to_datetime(df['date'])
 
@@ -683,7 +683,7 @@ def run_phase1():
             'n_labs': len(set(s.split('_')[0] for s in
                              [r['subject'] for r in all_results] if '_' in s)),
             'analysis_date': datetime.now().isoformat(),
-            'source_file': RAW_DATA_FILE,
+            'source_file': PROCESSED_DATA_FILE,
         },
         'chunk_summary': summary_df,
         'mouse_data': mouse_data,

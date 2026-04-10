@@ -33,7 +33,7 @@ import pandas as pd
 import requests
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
-from config import RAW_DATA_FILE, PROCESSED_DATA_FILE, FIGSHARE_URL, RAW_DOWNLOAD_DIR
+from config import PROCESSED_DATA_FILE, FIGSHARE_URL, RAW_DOWNLOAD_DIR
 
 # These must ALL exist for a session to be included (Roy Step 2, line 47)
 REQUIRED_VARS = [
@@ -346,35 +346,11 @@ def standardize_columns(df):
 
 def download_and_prepare():
     """Main entry point: download, assemble, correct, standardize, save."""
-    if os.path.exists(RAW_DATA_FILE):
-        print(f"Pre-processed data already exists: {RAW_DATA_FILE}")
-        df = pd.read_csv(RAW_DATA_FILE)
+    if os.path.exists(PROCESSED_DATA_FILE):
+        print(f"Pre-processed data already exists: {PROCESSED_DATA_FILE}")
+        df = pd.read_csv(PROCESSED_DATA_FILE)
         print(f"  {len(df):,} trials, {df['subject'].nunique()} mice")
-
-        # ── Data integrity check ──
-        # Verify choice encoding matches Roy et al. convention:
-        #   {0 = right, 1 = left} (i.e., y=1 means "chose left")
-        # If we find {0, 1} with 0 as left, the CSV predates the encoding fix
-        # and must be regenerated.
-        choice_vals = sorted(df['choice'].unique())
-        if choice_vals != [0, 1]:
-            print(f"  WARNING: Unexpected choice values {choice_vals}, regenerating...")
-        else:
-            # Spot-check: in Roy convention, contrast_right > 0 with choice=0
-            # means "chose right toward the stimulus" — the majority should be
-            # rewarded. If the majority are UNrewarded, encoding is inverted.
-            check = df[(df['contrast_right'] >= 0.5) & (df['contrast_left'] == 0)]
-            if len(check) > 100:
-                right_correct = check[check['choice'] == 0]['rewarded'].mean()
-                if right_correct < 0.5:
-                    print(f"  WARNING: Choice encoding appears inverted "
-                          f"(right-stimulus accuracy = {right_correct:.1%})")
-                    print(f"  Deleting stale CSV and regenerating...")
-                    os.remove(RAW_DATA_FILE)
-                else:
-                    return RAW_DATA_FILE
-            else:
-                return RAW_DATA_FILE
+        return PROCESSED_DATA_FILE
 
     # Download
     zip_path = download_from_figshare(FIGSHARE_URL, RAW_DOWNLOAD_DIR)
@@ -398,11 +374,11 @@ def download_and_prepare():
     print(f"    Date range:    {df['date'].min()} — {df['date'].max()}")
 
     # Save
-    os.makedirs(os.path.dirname(RAW_DATA_FILE), exist_ok=True)
-    df.to_csv(RAW_DATA_FILE, index=False)
-    print(f"\n  Saved: {RAW_DATA_FILE}")
+    os.makedirs(os.path.dirname(PROCESSED_DATA_FILE), exist_ok=True)
+    df.to_csv(PROCESSED_DATA_FILE, index=False)
+    print(f"\n  Saved: {PROCESSED_DATA_FILE}")
 
-    return RAW_DATA_FILE
+    return PROCESSED_DATA_FILE
 
 
 if __name__ == '__main__':
